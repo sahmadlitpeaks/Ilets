@@ -11,6 +11,7 @@ import {
 import { ProgressChart, type ScorePoint } from "@/components/dashboard/progress-chart";
 import { RecentTests, type RecentAttempt } from "@/components/dashboard/recent-tests";
 import { StreakCounter } from "@/components/dashboard/streak-counter";
+import { TargetTestSwitcher } from "@/components/dashboard/target-test-switcher";
 import { WeakAreas, type SkillAccuracy } from "@/components/dashboard/weak-areas";
 import { createClient } from "@/lib/supabase/server";
 import { TEST_CATALOG } from "@/lib/test-data";
@@ -139,7 +140,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">
             Welcome back
@@ -148,6 +149,12 @@ export default async function DashboardPage() {
           <h1 className="font-display text-3xl md:text-4xl tracking-tight">
             Your {targetTest.toUpperCase()} plan
           </h1>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              Switch target test:
+            </span>
+            <TargetTestSwitcher current={targetTest} userId={user.id} />
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {profile?.target_score && (
