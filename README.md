@@ -5,8 +5,9 @@ TOEFL, PTE, and the Duolingo English Test (DET), plus skill drills and
 AI-powered writing & speaking feedback.
 
 Built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**,
-**Supabase** (auth / DB / storage), and the **Anthropic Claude API** (server
-side only).
+**Supabase** (auth / DB / storage), and a pluggable **LLM provider** (server
+side only) that supports **Anthropic Claude** or **Google Gemini** — pick
+whichever you have a key for.
 
 ## Features
 
@@ -27,7 +28,7 @@ side only).
 | Styling | Tailwind CSS + shadcn/ui primitives + Framer Motion |
 | Auth + DB | Supabase (Postgres + RLS) |
 | Storage | Supabase Storage (`speaking-audio` bucket) |
-| AI | Anthropic Claude (`claude-sonnet-4-6`) |
+| AI | Anthropic Claude (`claude-sonnet-4-6`) **or** Google Gemini (`gemini-2.0-flash`) — auto-selected by which key is set |
 | Speech-to-text | Web Speech API in-browser; Deepgram SDK included for server STT |
 | Charts | Recharts |
 | Deploy | Vercel |
@@ -60,7 +61,7 @@ components/
   results/                Feedback panel
 lib/
   supabase/               client / server / middleware helpers
-  anthropic.ts            Server-only Claude wrapper
+  llm.ts                  Server-only unified LLM client (Claude + Gemini)
   feedback-prompts.ts     Exam-specific rubric prompts
   scoring/                Band-score converters per exam
   test-data/              Original question bank (JSON/TS)
@@ -108,9 +109,25 @@ cp .env.local.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=            # from Supabase project settings
 NEXT_PUBLIC_SUPABASE_ANON_KEY=       # from Supabase project settings
 SUPABASE_SERVICE_ROLE_KEY=           # server-only; used only by seed + API routes
-ANTHROPIC_API_KEY=                   # server-only
+
+# Pick ONE LLM provider. Anthropic wins if both are set.
+ANTHROPIC_API_KEY=                   # server-only — paid
+GEMINI_API_KEY=                      # server-only — free tier at https://aistudio.google.com/apikey
+
 DEEPGRAM_API_KEY=                    # optional; server-side STT fallback
 ```
+
+### LLM provider selection
+
+`lib/llm.ts` checks for `ANTHROPIC_API_KEY` first, then `GEMINI_API_KEY` (or
+`GOOGLE_API_KEY`). If neither is set the feedback endpoints return
+`502 "Feedback unavailable"` and the rest of the app continues to work with
+auto-scored MCQ/fill-blank questions.
+
+| Provider | Model | Free tier | Notes |
+| --- | --- | --- | --- |
+| Anthropic Claude | `claude-sonnet-4-6` | No | Best rubric grader; preferred |
+| Google Gemini | `gemini-2.0-flash` | **Yes** (~15 req/min, 1M tok/day) | Drop-in fallback; uses Gemini's native JSON mode |
 
 ### 4. Seed the test catalogue (optional)
 
@@ -156,9 +173,9 @@ URL configuration**.
 
 ## Security notes
 
-- `ANTHROPIC_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are **never** imported in
-  client components. All AI calls go through server API routes, which verify
-  the Supabase session before calling Claude.
+- `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are
+  **never** imported in client components. All AI calls go through server API
+  routes, which verify the Supabase session before calling the LLM.
 - Every table has Row Level Security on: users can only read and write their
   own `profiles`, `attempts`, and `drill_sessions` rows.
 - Speaking audio is stored in a private Supabase bucket. The schema includes a

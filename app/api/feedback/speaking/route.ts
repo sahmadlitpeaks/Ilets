@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  CLAUDE_MODEL,
-  extractFirstJsonObject,
-  getAnthropic,
-} from "@/lib/anthropic";
+import { generateJson } from "@/lib/llm";
 import { speakingPromptFor } from "@/lib/feedback-prompts";
 import { createClient } from "@/lib/supabase/server";
 
@@ -47,8 +43,9 @@ export async function POST(req: Request) {
   }
 
   let feedback: unknown;
+  let provider = "unknown";
+  let model = "unknown";
   try {
-    const client = getAnthropic();
     const promptText = speakingPromptFor(parsed.testType, {
       prompt: parsed.prompt,
       transcript: parsed.transcript,
@@ -56,19 +53,16 @@ export async function POST(req: Request) {
       pauseCount: parsed.pauseCount,
       words: countWords(parsed.transcript),
     });
-    const response = await client.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 1600,
+    const result = await generateJson({
+      prompt: promptText,
+      maxTokens: 1600,
       temperature: 0.2,
-      messages: [{ role: "user", content: promptText }],
     });
-    const text = response.content
-      .filter((b): b is { type: "text"; text: string } => b.type === "text")
-      .map((b) => b.text)
-      .join("\n");
-    feedback = extractFirstJsonObject(text);
+    feedback = result.data;
+    provider = result.provider;
+    model = result.model;
   } catch (err) {
-    console.error("[feedback/speaking] Claude error", err);
+    console.error("[feedback/speaking] LLM error", err);
     return NextResponse.json(
       {
         error: "Feedback unavailable, try again.",
@@ -93,5 +87,5 @@ export async function POST(req: Request) {
       .eq("user_id", user.id);
   }
 
-  return NextResponse.json({ feedback });
+  return NextResponse.json({ feedback, provider, model });
 }
